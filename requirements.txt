@@ -1,0 +1,15 @@
+bcrypt==4.0.1
+fastapi
+psycopg2-binary
+python-jose
+python-multipart
+SQLAlchemy
+uvicorn
+passlib
+pytest
+httpx
+pytest-asyncio
+aiofiles
+scalar-fastapi
+python-dotenv
+alembic
