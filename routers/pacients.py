@@ -7,19 +7,18 @@ from sqlalchemy.orm import Session
 from starlette import status
 from services.auth_service import get_current_user
 from services.auth_service import bcrypt_context
-from schemas.pacient_schema import PacientSchema, InactivatePacientSchema
+from schemas.pacient_schema import PacientSchema
 from schemas.pacient_output import PacientOutput
-from schemas.paciente_update_schema import PacientUpdateSchema
 from models.pacient_history_model import PacientHistory
 from models.pacient_inactivation_model import PacientInactivation
-from schemas.inactivation_output import InactivationOut
 from models.appointment_model import Appointment
 from models.appointment_model import AppointmentStatus
-
+from schemas.update_pacient_schema import UpdatePacient
+from schemas.inactivation_reason_schema import InactivationReason
 
 router = APIRouter(
-    prefix="/pacients",
-    tags=["pacientes"]
+    prefix="/patients",
+    tags=["patients"]
 )
 
 
@@ -34,7 +33,6 @@ def get_db():
 db_dependency = Annotated[Session, Depends(get_db)]
 user_dependency = Annotated[dict, Depends(get_current_user)]
 
-
 @router.get("/search-patient", response_model=List[PacientOutput],
             status_code=status.HTTP_200_OK,
             summary="Buscar pacientes por ID, CPF ou nome")
@@ -46,7 +44,15 @@ def search_pacients(
     cpf: Optional[str] = Query(None, min_length=11, max_length=14, description="CPF com ou sem formatação"),
     name: Optional[str] = Query(None, min_length=3, description="Parte ou nome completo do paciente"),
 ):
+    
+    if current_user.get("role") not in ("RECEPCIONISTA", "DOCTOR"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permissão insuficiente para acessar este método."
+    )
+
     query = db.query(Pacient)
+
 
     if id is not None:
         query = query.filter(Pacient.id == id)
@@ -68,12 +74,20 @@ def search_pacients(
     return results
 
 
-@router.post("/add-new-pacient",
+@router.post("/add-new-patient",
              status_code=status.HTTP_201_CREATED,
              response_model=None,
              summary="Cria um novo paciente")
-async def add_pacient(db: db_dependency,
-                      create_pacient_request: PacientSchema,):
+async def add_pacient(db: db_dependency, 
+                      create_pacient_request: PacientSchema, current_user: dict = Depends(get_current_user)):
+
+    if current_user.get("role") != "RECEPCIONISTA":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Permissão insuficiente para acessar este método."
+    )
+
+
     existing = (
         db.query(Pacient)
           .filter(Pacient.cpf == create_pacient_request.cpf)
@@ -104,19 +118,19 @@ async def add_pacient(db: db_dependency,
 
     return JSONResponse(
         status_code=status.HTTP_201_CREATED,
-        content={"message": "Usuário criado com sucesso.", "id": pacient.id}
+        content={"message": "Usuário criado com sucesso."}
     )
 
 
 @router.patch(
-    "/update-pacient/{pacient_id}",
+    "/update-patient/{pacient_id}",
     status_code=status.HTTP_200_OK,
     summary="Atualiza dados cadastrais de um paciente."  
 )
 def update_pacient(
     *,
     pacient_id: int = Path(..., gt=0),
-    payload: PacientUpdateSchema = Body(...),
+    payload: UpdatePacient,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -133,13 +147,13 @@ def update_pacient(
             detail="Paciente não encontrado."
         )
 
-    if payload.version_id != pacient.version_id:
+    if payload["version_id"] != pacient.version_id:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Dados desatualizados: atualize a tela e tente novamente"
         )
 
-    data = payload.model_dump(exclude_unset=True)
+    data = payload.copy()
     data.pop("version_id", None)
     for field, new_value in data.items():
         old_value = getattr(pacient, field)
@@ -158,19 +172,22 @@ def update_pacient(
     db.commit()
     db.refresh(pacient)
 
-    return pacient
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={"message": "Usuário atualizado com sucesso."}
+    )
 
 
 @router.post(
     "/inactivate-patient/{pacient_id}",
-    response_model=InactivatePacientSchema,
+    response_model=None,
     status_code=status.HTTP_200_OK,
     summary="Inativa logicamente um cadastro de paciente"
 )
 def inactivate_pacient(
     *,
     pacient_id: int = Path(..., gt=0),
-    payload: InactivatePacientSchema = Body(...),
+    payload: InactivationReason,
     db: Session = Depends(get_db),
     current_user: dict = Depends(get_current_user)
 ):
@@ -204,7 +221,7 @@ def inactivate_pacient(
     pacient.is_active = False
     hist = PacientInactivation(
         pacient_id=pacient.id,
-        reason=payload.reason,
+        reason=payload["reason"],
         inactivated_by=current_user.get("username")
     )
     db.add(hist)
@@ -221,10 +238,11 @@ def inactivate_pacient(
 
 
 
-@router.delete("/delete-pacient/{pacient_id}",
+@router.delete("/delete-patient/{pacient_id}",
                status_code=status.HTTP_204_NO_CONTENT,
                summary="Deleta um paciente pelo ID")
 async def delete_pacient(db: db_dependency, pacient_id: int = Path(gt=0)):
+    
     pacient = db.query(Pacient).get(pacient_id)
     
     if not pacient:
