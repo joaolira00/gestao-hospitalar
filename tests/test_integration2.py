@@ -7,6 +7,9 @@ from services.auth_service import get_current_user
 from database.database import Base, get_db
 from main import app
 from models.pacient_model import Pacient
+from models.appointment_model import AppointmentStatus
+from datetime import datetime, timedelta, timezone
+from models.staff_model import Staff
 
 DATABASE_URL = os.getenv("DATABASE_URL")
 
@@ -15,8 +18,8 @@ TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engin
 
 def override_get_current_user():
     return {
-        "username": "user_teste",
-        "role": "PACIENT" 
+        "username": "recep_teste",
+        "role": "RECEPCIONISTA"
     }
 
 
@@ -49,7 +52,7 @@ def create_test_pacient(db, cpf="12345678901"):
     pacient = Pacient(
         id=5,
         full_name="Teste User",
-        birth_date="2000-01-01",
+        birth_date="20000101",
         cpf=cpf,
         hashed_password="fakehash",
         gender="Masculino",
@@ -67,11 +70,43 @@ def create_test_pacient(db, cpf="12345678901"):
     return pacient
 
 
-def test_search_pacient_forbidden(client: TestClient):
+def test_search_pacient_success(client: TestClient, db_session):
     app.dependency_overrides[get_current_user] = lambda: {
         "username": "recep_teste",
         "role": "RECEPCIONISTA"
     }
-    response = client.get("/pacients/search-patient/", params={"id": 9999})
-    assert response.status_code == 404
-    app.dependency_overrides.pop(get_current_user)
+
+    pacient = create_test_pacient(db_session, cpf="12345678901")
+
+    response = client.get(f"/patients/search-patient/?id={pacient.id}")
+    assert response.status_code == 200
+
+    
+
+
+def test_schedule_appointment(db_session, client):
+    app.dependency_overrides[get_current_user] = lambda: {
+        "username": "recep_teste",
+        "role": "RECEPCIONISTA"
+    }
+
+    p = create_test_pacient(db_session, cpf="44455566677")
+    doctor = Staff(username="Dr. Teste", cpf="99988877766", hashed_password="hsuhd82731", role="DOCTOR")
+    db_session.add(doctor)
+    db_session.commit()
+    db_session.refresh(doctor)
+
+    scheduled = (datetime.now(timezone.utc) + timedelta(days=1)).isoformat()
+
+    payload = {
+        "pacient_id": p.id,
+        "doctor_id": doctor.id,
+        "scheduled_at": scheduled,
+        "status": "Agendada"
+    }
+    response = client.post("/appointments/schedule-appointment", json=payload)
+    assert response.status_code == 201
+    data = response.json()
+    assert data["pacient_id"] == p.id
+    assert data["doctor_id"] == doctor.id
+    assert data["status"] == AppointmentStatus.SCHEDULED.value
