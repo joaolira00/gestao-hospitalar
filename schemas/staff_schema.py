@@ -1,7 +1,5 @@
-from database.database import Base
-from sqlalchemy import Column, Integer, String
 from pydantic import BaseModel, Field
-from typing import Annotated, Optional
+
 
 class StaffSchema(BaseModel):
     username: str = Field(min_length=5, max_length=100)

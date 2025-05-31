@@ -1,6 +1,4 @@
 from fastapi import APIRouter, Depends, HTTPException
-from schemas.pacient_schema import PacientSchema
-from models.pacient_model import Pacient
 from starlette import status
 from database.database import SessionLocal
 from typing import Annotated

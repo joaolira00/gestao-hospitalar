@@ -1,6 +1,5 @@
-from pydantic import BaseModel, Field, EmailStr, validator
+from pydantic import BaseModel, Field
 from typing import Optional
-from datetime import date
 
 class PacientUpdateSchema(BaseModel):
     full_name: Optional[str] = Field(None, min_length=5, max_length=100)

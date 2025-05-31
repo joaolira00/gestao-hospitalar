@@ -139,6 +139,8 @@ def update_pacient(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Permissão insuficiente para acessar este método."
         )
+    
+    data = payload.model_dump()
 
     pacient = db.get(Pacient, pacient_id)
     if not pacient:
@@ -147,15 +149,15 @@ def update_pacient(
             detail="Paciente não encontrado."
         )
 
-    if payload["version_id"] != pacient.version_id:
+    if data["version_id"] != pacient.version_id:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Dados desatualizados: atualize a tela e tente novamente"
         )
 
-    data = payload.copy()
-    data.pop("version_id", None)
-    for field, new_value in data.items():
+    new_data = payload.model_dump()
+    new_data.pop("version_id", None)
+    for field, new_value in new_data.items():
         old_value = getattr(pacient, field)
         if new_value != old_value:
             hist = PacientHistory(
@@ -196,6 +198,8 @@ def inactivate_pacient(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Permissão insuficiente."
         )
+    
+    data = payload.model_dump()
 
     pacient = db.get(Pacient, pacient_id)
     if not pacient or not pacient.is_active:
@@ -221,7 +225,7 @@ def inactivate_pacient(
     pacient.is_active = False
     hist = PacientInactivation(
         pacient_id=pacient.id,
-        reason=payload["reason"],
+        reason=data["reason"],
         inactivated_by=current_user.get("username")
     )
     db.add(hist)

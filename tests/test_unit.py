@@ -7,14 +7,10 @@ from main import app
 from models.pacient_model import Pacient
 from models.staff_model import Staff
 from models.appointment_model import AppointmentStatus
-from schemas.pacient_schema import PacientSchema
-from schemas.paciente_update_schema import PacientUpdateSchema
-from schemas.appointment_schema import AppointmentCreate
 from datetime import datetime, timedelta, timezone
 from services.auth_service import get_current_user
 from dotenv import load_dotenv
 from sqlalchemy import text
-from fastapi import Body
 from services.auth_service import get_current_user
 from models.staff_model import Staff
 import os
@@ -218,21 +214,34 @@ def test_add_pacient_invalid_data(db_session):
 
 def test_update_pacient_concurrent(db_session):
     p = create_test_pacient(db_session, cpf="22233344455")
-    payload = {"full_name": "Alterado", "version_id": p.version_id - 1}
+    payload = {"full_name": "Alterado", 
+               "birth_date": "01012003",
+               "phone_number": "91912345678",
+               "address": "Montreal",
+               "version_id": p.version_id - 1}
     response = client.patch(f"/patients/update-patient/{p.id}", json=payload)
     assert response.status_code == 409
 
 
 def test_update_pacient_not_found(db_session):
     p = create_test_pacient(db_session, cpf="22233344455")
-    payload = {"full_name": "Alterado", "version_id": p.version_id - 1}
+    payload = {"full_name": "Alterado", 
+               "birth_date": "01012003",
+               "phone_number": "91912345678",
+               "address": "Montreal",
+               "version_id": p.version_id - 1}
     response = client.patch(f"/patients/update-patient/999999", json=payload)
     assert response.status_code == 404
 
 
 def test_update_pacient_success(db_session):
     p = create_test_pacient(db_session, cpf="22233344455")
-    payload = {"full_name": "Alterado", "version_id": p.version_id}
+    payload = {"full_name": "Alterado", 
+               "birth_date": "01012003",
+               "phone_number": "91912345678",
+               "address": "Montreal",
+               "email": "alterado@gmail.com",
+               "version_id": p.version_id}
     response = client.patch(f"/patients/update-patient/{p.id}", json=payload)
     assert response.status_code == 200
 

@@ -1,6 +1,5 @@
 from pydantic import BaseModel, Field, validator
 from datetime import datetime, timezone
-from typing import Optional
 
 class AppointmentCreate(BaseModel):
     pacient_id: int = Field(..., gt=0)
